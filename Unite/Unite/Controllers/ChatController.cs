@@ -32,8 +32,9 @@ public class ChatController : ControllerBase
     [ProducesResponseType<string>(StatusCodes.Status200OK)]
     public async Task<IActionResult> SendMessage(
         [FromQuery] string message,
+        [FromQuery] string threadId,
         CancellationToken cancellationToken)
     {
-        return Ok(await _assistantService.SendMessage(message));
+        return Ok(await _assistantService.SendMessage(message, threadId));
     }
 }

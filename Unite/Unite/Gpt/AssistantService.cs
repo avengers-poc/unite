@@ -32,13 +32,25 @@ public class AssistantService
         _jiraService = jiraService;
     }
 
-    public async Task<string> SendMessage(string message)
+    public async Task<SendMessageResult> SendMessage(string message, string threadId = null)
     {
         var assistant = (await _assistantClient.GetAssistantAsync(AssistantId)).Value;
-        var run = (await _assistantClient.CreateThreadAndRunAsync(assistant, new ThreadCreationOptions()
+        ThreadRun run;
+        if (!string.IsNullOrWhiteSpace(threadId))
         {
-            InitialMessages = { message }
-        })).Value;
+            run = (await _assistantClient.CreateRunAsync(threadId, AssistantId, new RunCreationOptions()
+            {
+                AdditionalMessages = { message }
+            })).Value;
+        }
+        else
+        {
+            run = (await _assistantClient.CreateThreadAndRunAsync(assistant, new ThreadCreationOptions()
+            {
+                InitialMessages = { message }
+            })).Value;
+        }
+        
         do
         {
             Thread.Sleep(TimeSpan.FromSeconds(1));
@@ -71,12 +83,17 @@ public class AssistantService
                 }
 
                 // Submit the tool outputs to the assistant, which returns the run to the queued state.
-                run = _assistantClient.SubmitToolOutputsToRun(run.ThreadId, run.Id, toolOutputs);
+                run = await _assistantClient.SubmitToolOutputsToRunAsync(run.ThreadId, run.Id, toolOutputs);
             }
         } while (!run.Status.IsTerminal);
         List<ThreadMessage> messages
             = _assistantClient.GetMessages(run.ThreadId, ListOrder.OldestFirst).ToList();
-        return string.Join("\r\n", messages.Last().Content);
+        var response = string.Join("\r\n", messages.Last().Content);
+        return new()
+        {
+            Response = response,
+            ThreadId = run.ThreadId
+        };
     }
 
     private async Task<string> SearchGithub(string message)
