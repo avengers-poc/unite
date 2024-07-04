@@ -16,6 +16,7 @@ export interface IMessage {
 export default function Chat() {
   const [messages, setMessages] = useState<IMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
+  const [threadId, setThreadId] = useState("");
   const messagesRef = useRef<IMessage[]>([]);
   messagesRef.current = messages;
 
@@ -24,11 +25,14 @@ export default function Chat() {
     setMessages([...messagesRef.current, { data: newMessage, isBot: false }]);
     setNewMessage("");
 
+    let url: string = `http://localhost:5000/Chat/SendMessage?message=${newMessage}`;
+    if (threadId) {
+      url += `&threadId=${threadId}`;
+    }
     void axios
-      .post(
-        `http://localhost:5000/Chat/SendMessage?message=${newMessage}&threadId=thread_UmLyDwOjA0dFi6uYzO8iifKf`
-      )
+      .post(url)
       .then((response) => {
+        setThreadId(response.data.threadId);
         setMessages([
           ...messagesRef.current,
           {
