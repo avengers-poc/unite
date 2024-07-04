@@ -66,44 +66,33 @@ public class AssistantService
                 if (action.FunctionName == "SearchGithub")
                 {
                     using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
-                    var hasLocation = argumentsJson.RootElement.TryGetProperty("searchstring", out var searchstring);
+                    argumentsJson.RootElement.TryGetProperty("searchstring", out var searchstring);
                     var result = await SearchGithub(searchstring.GetString());
                     toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
                 }
 
                 if (action.FunctionName == "GetCommitHistory")
                 {
-                    if (action.FunctionName == "SearchGithub")
-                    {
-                        using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
-                        argumentsJson.RootElement.TryGetProperty("searchstring", out var searchstring);
-                        var result = await SearchGithub(searchstring.GetString());
-                        toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
-                    }
+                    using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
+                    var hasFilePath = argumentsJson.RootElement.TryGetProperty("filePath", out var filePath);
+                    var result = hasFilePath
+                        ? await GetCommitHistory(filePath.GetString())
+                        : await GetCommitHistory();
+                    toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
+                }
 
-                    if (action.FunctionName == "GetCommitHistory")
-                    {
-                        using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
-                        var hasFilePath = argumentsJson.RootElement.TryGetProperty("filePath", out var filePath);
-                        var result = hasFilePath
-                            ? await GetCommitHistory(filePath.GetString())
-                            : await GetCommitHistory();
-                        toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
-                    }
-
-                    if (action.FunctionName == "GetPullRequests")
-                    {
-                        var result = await GetPullRequests();
-                        toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
-                    }
-                    
-                    if (action.FunctionName == "SearchJira")
-                    {
-                        using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
-                        argumentsJson.RootElement.TryGetProperty("searchstring", out var searchstring);
-                        var result = SearchJira(searchstring.GetString());
-                        toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
-                    }
+                if (action.FunctionName == "GetPullRequests")
+                {
+                    var result = await GetPullRequests();
+                    toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
+                }
+                
+                if (action.FunctionName == "SearchJira")
+                {
+                    using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
+                    argumentsJson.RootElement.TryGetProperty("searchstring", out var searchstring);
+                    var result = SearchJira(searchstring.GetString());
+                    toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
                 }
             }
 
