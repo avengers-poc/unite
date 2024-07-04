@@ -1,5 +1,7 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
 using Unite.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,6 +26,9 @@ builder.Services.AddSwaggerGen();
 
 builder.Services.AddJira();
 builder.Services.AddGithub();
+#pragma warning disable OPENAI001
+builder.Services.AddGptAssistant();
+#pragma warning restore OPENAI001
 
 var app = builder.Build();
 
