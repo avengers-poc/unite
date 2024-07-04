@@ -94,6 +94,23 @@ public class AssistantService
                     var result = SearchJira(searchstring.GetString());
                     toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
                 }
+                
+                if (action.FunctionName == "GetSolutionArchitecture")
+                {
+                    var result = "Solution Architecture";
+                    toolOutputs.Add(new ToolOutput(action.ToolCallId, JsonSerializer.Serialize(true)));
+                }
+                
+                if (action.FunctionName == "CreateJiraIssue")
+                {
+                    using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
+                    argumentsJson.RootElement.TryGetProperty("issueType", out var issueType);
+                    argumentsJson.RootElement.TryGetProperty("summary", out var summary);
+                    argumentsJson.RootElement.TryGetProperty("issueDescription", out var description);
+                    argumentsJson.RootElement.TryGetProperty("priority", out var priority);
+                    var result = CreateJiraIssue(issueType.GetString(), summary.GetString(), description.GetString(), priority.GetString());
+                    toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
+                }
             }
 
             // Submit the tool outputs to the assistant, which returns the run to the queued state.
@@ -146,4 +163,16 @@ public class AssistantService
         var issues = _jiraService.IssueSearch(searchString);
         return JsonSerializer.Serialize(issues);
     }
+
+    private string CreateJiraIssue(
+        string issueType,
+        string summary,
+        string description = null,
+        string priority = null,
+        string parentKey = null
+        )
+    {
+        var issue = _jiraService.IssueCreate("AU", issueType, summary, description, priority, parentKey);
+        return JsonSerializer.Serialize(issue);
+    }    
 }
