@@ -108,7 +108,8 @@ public class AssistantService
                     argumentsJson.RootElement.TryGetProperty("summary", out var summary);
                     argumentsJson.RootElement.TryGetProperty("issueDescription", out var description);
                     argumentsJson.RootElement.TryGetProperty("priority", out var priority);
-                    var result = CreateJiraIssue(issueType.GetString(), summary.GetString(), description.GetString(), priority.GetString());
+                    argumentsJson.RootElement.TryGetProperty("parentKey", out var parentKey);
+                    var result = CreateJiraIssue(issueType.GetString(), summary.GetString(), description.GetString(), priority.GetString(), string.IsNullOrWhiteSpace(parentKey.GetString()) ? null : parentKey.GetString());
                     toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
                 }
             }
