@@ -66,7 +66,7 @@ public class AssistantService
                     if (action.FunctionName == "SearchGithub")
                     {
                         using JsonDocument argumentsJson = JsonDocument.Parse(action.FunctionArguments);
-                        bool hasLocation = argumentsJson.RootElement.TryGetProperty("searchstring", out JsonElement searchstring);
+                        argumentsJson.RootElement.TryGetProperty("searchstring", out JsonElement searchstring);
                         string result = await SearchGithub(searchstring.GetString());
                         toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
                     }
@@ -78,6 +78,20 @@ public class AssistantService
                         string result = hasFilePath
                             ? await GetCommitHistory(filePath.GetString())
                             : await GetCommitHistory();
+                        toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
+                    }
+
+                    if (action.FunctionName == "GetPullRequests")
+                    {
+                        string result = await GetPullRequests();
+                        toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
+                    }
+                    
+                    if (action.FunctionName == "SearchJira")
+                    {
+                        using JsonDocument argumentsJson = JsonDocument.Parse(action.FunctionArguments);
+                        argumentsJson.RootElement.TryGetProperty("searchstring", out JsonElement searchstring);
+                        string result = SearchJira(searchstring.GetString());
                         toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
                     }
                 }
@@ -96,9 +110,9 @@ public class AssistantService
         };
     }
 
-    private async Task<string> SearchGithub(string message)
+    private async Task<string> SearchGithub(string searchstring)
     {
-        var resp = await _gitHubClient.Search.SearchCode(new(message, Owner, Repo));
+        var resp = await _gitHubClient.Search.SearchCode(new(searchstring, Owner, Repo));
         return JsonSerializer.Serialize(resp);
     }
 
@@ -110,5 +124,18 @@ public class AssistantService
             Path = fileName
         });
         return JsonSerializer.Serialize(commits);
+    }
+
+    private async Task<string> GetPullRequests()
+    {
+        var repo = await _gitHubClient.Repository.Get(Owner, Repo);
+        IReadOnlyList<PullRequest> pullRequests = await _gitHubClient.Repository.PullRequest.GetAllForRepository(repo.Id);
+        return JsonSerializer.Serialize(pullRequests);
+    }
+
+    private string SearchJira(string searchString)
+    {
+        var issues = _jiraService.IssueSearch(searchString);
+        return JsonSerializer.Serialize(issues);
     }
 }
