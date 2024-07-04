@@ -1,16 +1,9 @@
-using System;
-using System.ClientModel;
-using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
-using System.Linq;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using Jira.Rest.Sdk;
 using Octokit;
 using OpenAI;
 using OpenAI.Assistants;
-using OpenAI.Chat;
 
 namespace Unite.Gpt;
 
@@ -53,8 +46,8 @@ public class AssistantService
         
         do
         {
-            Thread.Sleep(TimeSpan.FromSeconds(1));
-            run = _assistantClient.GetRun(run.ThreadId, run.Id);
+            await Task.Delay(TimeSpan.FromSeconds(1));
+            run = await _assistantClient.GetRunAsync(run.ThreadId, run.Id);
 
             // If the run requires action, resolve them.
             if (run.Status == RunStatus.RequiresAction)
