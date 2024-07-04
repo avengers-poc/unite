@@ -63,54 +63,69 @@ public class AssistantService
 
             foreach (var action in run.RequiredActions)
             {
-                if (action.FunctionName == "SearchGithub")
+                string result = "";
+                try
                 {
-                    using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
-                    argumentsJson.RootElement.TryGetProperty("searchstring", out var searchstring);
-                    var result = await SearchGithub(searchstring.GetString());
-                    toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
-                }
+                    if (action.FunctionName == "SearchGithub")
+                    {
+                        using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
+                        argumentsJson.RootElement.TryGetProperty("searchstring", out var searchstring);
+                        result = await SearchGithub(searchstring.GetString());
+                    }
 
-                if (action.FunctionName == "GetCommitHistory")
-                {
-                    using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
-                    var hasFilePath = argumentsJson.RootElement.TryGetProperty("filePath", out var filePath);
-                    var result = hasFilePath
-                        ? await GetCommitHistory(filePath.GetString())
-                        : await GetCommitHistory();
-                    toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
-                }
+                    if (action.FunctionName == "GetCommitHistory")
+                    {
+                        using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
+                        var hasFilePath = argumentsJson.RootElement.TryGetProperty("filePath", out var filePath);
+                        result = hasFilePath
+                            ? await GetCommitHistory(filePath.GetString())
+                            : await GetCommitHistory();
+                    }
 
-                if (action.FunctionName == "GetPullRequests")
-                {
-                    var result = await GetPullRequests();
-                    toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
+                    if (action.FunctionName == "GetPullRequests")
+                    {
+                        result = await GetPullRequests();
+                    }
+
+                    if (action.FunctionName == "SearchJira")
+                    {
+                        using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
+                        argumentsJson.RootElement.TryGetProperty("searchstring", out var searchstring);
+                        result = SearchJira(searchstring.GetString());
+                    }
+
+                    if (action.FunctionName == "GetSolutionArchitecture")
+                    {
+                        result = "Solution Architecture";
+                    }
+
+                    if (action.FunctionName == "CreateJiraIssue")
+                    {
+                        using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
+                        argumentsJson.RootElement.TryGetProperty("issueType", out var issueType);
+                        argumentsJson.RootElement.TryGetProperty("summary", out var summary);
+                        argumentsJson.RootElement.TryGetProperty("issueDescription", out var description);
+                        argumentsJson.RootElement.TryGetProperty("priority", out var priority);
+                        argumentsJson.RootElement.TryGetProperty("parentKey", out var parentKey);
+                        result = CreateJiraIssue(issueType.GetString(), summary.GetString(), description.GetString(),
+                            priority.GetString(),
+                            string.IsNullOrWhiteSpace(parentKey.GetString()) ? null : parentKey.GetString());
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(result))
+                    {
+                        toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
+                    }
                 }
-                
-                if (action.FunctionName == "SearchJira")
+                catch (Exception e)
                 {
-                    using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
-                    argumentsJson.RootElement.TryGetProperty("searchstring", out var searchstring);
-                    var result = SearchJira(searchstring.GetString());
-                    toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
-                }
-                
-                if (action.FunctionName == "GetSolutionArchitecture")
-                {
-                    var result = "Solution Architecture";
-                    toolOutputs.Add(new ToolOutput(action.ToolCallId, JsonSerializer.Serialize(true)));
-                }
-                
-                if (action.FunctionName == "CreateJiraIssue")
-                {
-                    using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
-                    argumentsJson.RootElement.TryGetProperty("issueType", out var issueType);
-                    argumentsJson.RootElement.TryGetProperty("summary", out var summary);
-                    argumentsJson.RootElement.TryGetProperty("issueDescription", out var description);
-                    argumentsJson.RootElement.TryGetProperty("priority", out var priority);
-                    argumentsJson.RootElement.TryGetProperty("parentKey", out var parentKey);
-                    var result = CreateJiraIssue(issueType.GetString(), summary.GetString(), description.GetString(), priority.GetString(), string.IsNullOrWhiteSpace(parentKey.GetString()) ? null : parentKey.GetString());
-                    toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
+                    ErrorResult errorResult = new()
+                    {
+                        Message = e.Message,
+                        StackTrace = e.StackTrace
+                    };
+                    string errorResultString = JsonSerializer.Serialize(errorResult);
+                    toolOutputs.Add(new ToolOutput(action.ToolCallId, errorResultString));
                 }
             }
 
