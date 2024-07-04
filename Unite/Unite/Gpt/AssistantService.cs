@@ -22,6 +22,8 @@ public class AssistantService
     private readonly JiraService _jiraService;
 
     private const string AssistantId = "asst_hJvgr1Z7nr7Qf1cAHwD9ZIdz";
+    private const string Owner = "avengers-poc";
+    private const string Repo = "unite";
 
     public AssistantService(AssistantClient assistantClient, GitHubClient gitHubClient, JiraService jiraService)
     {
@@ -56,6 +58,16 @@ public class AssistantService
                         string result = await SearchGithub(searchstring.GetString());
                         toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
                     }
+
+                    if (action.FunctionName == "GetCommitHistory")
+                    {
+                        using JsonDocument argumentsJson = JsonDocument.Parse(action.FunctionArguments);
+                        bool hasFilePath = argumentsJson.RootElement.TryGetProperty("filePath", out JsonElement filePath);
+                        string result = hasFilePath
+                            ? await GetCommitHistory(filePath.GetString())
+                            : await GetCommitHistory();
+                        toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
+                    }
                 }
 
                 // Submit the tool outputs to the assistant, which returns the run to the queued state.
@@ -69,7 +81,17 @@ public class AssistantService
 
     private async Task<string> SearchGithub(string message)
     {
-        var resp = await _gitHubClient.Search.SearchCode(new(message, "avengers-poc", "unite"));
+        var resp = await _gitHubClient.Search.SearchCode(new(message, Owner, Repo));
         return JsonSerializer.Serialize(resp);
+    }
+
+    private async Task<string> GetCommitHistory(string fileName = null)
+    {
+        var repo = await _gitHubClient.Repository.Get(Owner, Repo);
+        var commits = await _gitHubClient.Repository.Commit.GetAll(repo.Id, new CommitRequest()
+        {
+            Path = fileName
+        });
+        return JsonSerializer.Serialize(commits);
     }
 }
