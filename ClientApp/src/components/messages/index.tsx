@@ -2,7 +2,7 @@ import { Box } from "@infotrack/zenith-ui";
 import React, { useEffect, useRef } from "react";
 import { IMessage } from "../chat";
 import * as css from "./messagesCss";
-import parse from 'html-react-parser';
+import parse from "html-react-parser";
 
 export default function Messages({ messages }: { messages: IMessage[] }) {
   const bottomRef = useRef<HTMLElement>(null);
@@ -20,12 +20,13 @@ export default function Messages({ messages }: { messages: IMessage[] }) {
 }
 
 function Message(message: IMessage, id: number) {
+  const newlineText = message.data.replace(/\n/g, "<br />");
   return (
     <Box sx={css.messageItem(message.isBot)} key={id}>
       <Box sx={css.avatar(message.isBot)} className="avatar" />
       <Box sx={css.messageContent}>
         <Box sx={css.username}>{message.isBot ? "the-avengers-bot" : "me"}</Box>
-        <Box sx={css.text}>{parse(message.data)}</Box>
+        <Box sx={css.text}>{parse(newlineText)}</Box>
       </Box>
     </Box>
   );
