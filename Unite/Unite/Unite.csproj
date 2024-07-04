@@ -7,4 +7,10 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <ItemGroup>
+      <PackageReference Include="Jira.Rest.Sdk" Version="1.0.1.10" />
+      <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+      <PackageReference Include="Octokit" Version="13.0.1" />
+    </ItemGroup>
+
 </Project>
