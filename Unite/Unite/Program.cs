@@ -1,8 +1,4 @@
-﻿// See https://aka.ms/new-console-template for more information
-
-using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.DependencyInjection;
-using Unite.DependencyInjection;
+﻿using Unite.DependencyInjection;
 
 var builder = WebApplication.CreateBuilder(args);
 

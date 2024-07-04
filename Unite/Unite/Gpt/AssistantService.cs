@@ -1,7 +1,10 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
+
 using Jira.Rest.Sdk;
+
 using Octokit;
+
 using OpenAI;
 using OpenAI.Assistants;
 
@@ -25,20 +28,23 @@ public class AssistantService
         _jiraService = jiraService;
     }
 
-    public async Task<SendMessageResult> SendMessage(string message, string threadId = null)
+    public async Task<SendMessageResult> SendMessage(string message, string threadId = null, CancellationToken cancellationToken = default)
     {
         var assistant = (await _assistantClient.GetAssistantAsync(AssistantId)).Value;
+        
         ThreadRun run;
+        
         if (!string.IsNullOrWhiteSpace(threadId))
         {
-            run = (await _assistantClient.CreateRunAsync(threadId, AssistantId, new RunCreationOptions()
+            run = (await _assistantClient.CreateRunAsync(threadId, AssistantId, new RunCreationOptions
             {
                 AdditionalMessages = { message }
-            })).Value;
+            },
+            cancellationToken)).Value;
         }
         else
         {
-            run = (await _assistantClient.CreateThreadAndRunAsync(assistant, new ThreadCreationOptions()
+            run = (await _assistantClient.CreateThreadAndRunAsync(assistant, new ThreadCreationOptions
             {
                 InitialMessages = { message }
             })).Value;
@@ -46,29 +52,40 @@ public class AssistantService
         
         do
         {
-            await Task.Delay(TimeSpan.FromSeconds(1));
-            run = await _assistantClient.GetRunAsync(run.ThreadId, run.Id);
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            
+            run = await _assistantClient.GetRunAsync(run.ThreadId, run.Id, cancellationToken);
 
             // If the run requires action, resolve them.
-            if (run.Status == RunStatus.RequiresAction)
-            {
-                List<ToolOutput> toolOutputs = [];
+            if (run.Status != RunStatus.RequiresAction) continue;
+            
+            List<ToolOutput> toolOutputs = [];
 
-                foreach (RequiredAction action in run.RequiredActions)
+            foreach (var action in run.RequiredActions)
+            {
+                if (action.FunctionName == "SearchGithub")
+                {
+                    using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
+                    var hasLocation = argumentsJson.RootElement.TryGetProperty("searchstring", out var searchstring);
+                    var result = await SearchGithub(searchstring.GetString());
+                    toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
+                }
+
+                if (action.FunctionName == "GetCommitHistory")
                 {
                     if (action.FunctionName == "SearchGithub")
                     {
-                        using JsonDocument argumentsJson = JsonDocument.Parse(action.FunctionArguments);
-                        argumentsJson.RootElement.TryGetProperty("searchstring", out JsonElement searchstring);
-                        string result = await SearchGithub(searchstring.GetString());
+                        using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
+                        argumentsJson.RootElement.TryGetProperty("searchstring", out var searchstring);
+                        var result = await SearchGithub(searchstring.GetString());
                         toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
                     }
 
                     if (action.FunctionName == "GetCommitHistory")
                     {
-                        using JsonDocument argumentsJson = JsonDocument.Parse(action.FunctionArguments);
-                        bool hasFilePath = argumentsJson.RootElement.TryGetProperty("filePath", out JsonElement filePath);
-                        string result = hasFilePath
+                        using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
+                        var hasFilePath = argumentsJson.RootElement.TryGetProperty("filePath", out var filePath);
+                        var result = hasFilePath
                             ? await GetCommitHistory(filePath.GetString())
                             : await GetCommitHistory();
                         toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
@@ -76,27 +93,36 @@ public class AssistantService
 
                     if (action.FunctionName == "GetPullRequests")
                     {
-                        string result = await GetPullRequests();
+                        var result = await GetPullRequests();
                         toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
                     }
                     
                     if (action.FunctionName == "SearchJira")
                     {
-                        using JsonDocument argumentsJson = JsonDocument.Parse(action.FunctionArguments);
-                        argumentsJson.RootElement.TryGetProperty("searchstring", out JsonElement searchstring);
-                        string result = SearchJira(searchstring.GetString());
+                        using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
+                        argumentsJson.RootElement.TryGetProperty("searchstring", out var searchstring);
+                        var result = SearchJira(searchstring.GetString());
                         toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
                     }
                 }
-
-                // Submit the tool outputs to the assistant, which returns the run to the queued state.
-                run = await _assistantClient.SubmitToolOutputsToRunAsync(run.ThreadId, run.Id, toolOutputs);
             }
-        } while (!run.Status.IsTerminal);
-        List<ThreadMessage> messages
-            = _assistantClient.GetMessages(run.ThreadId, ListOrder.OldestFirst).ToList();
+
+            // Submit the tool outputs to the assistant, which returns the run to the queued state.
+            run = await _assistantClient.SubmitToolOutputsToRunAsync(
+                run.ThreadId,
+                run.Id,
+                toolOutputs,
+                cancellationToken);
+        }
+        while (!run.Status.IsTerminal);
+        
+        var messages = _assistantClient
+            .GetMessages(run.ThreadId, ListOrder.OldestFirst, cancellationToken)
+            .ToList();
+        
         var response = string.Join("\r\n", messages.Last().Content);
-        return new()
+        
+        return new SendMessageResult
         {
             Response = response,
             ThreadId = run.ThreadId
@@ -122,7 +148,7 @@ public class AssistantService
     private async Task<string> GetPullRequests()
     {
         var repo = await _gitHubClient.Repository.Get(Owner, Repo);
-        IReadOnlyList<PullRequest> pullRequests = await _gitHubClient.Repository.PullRequest.GetAllForRepository(repo.Id);
+        var pullRequests = await _gitHubClient.Repository.PullRequest.GetAllForRepository(repo.Id);
         return JsonSerializer.Serialize(pullRequests);
     }
 
