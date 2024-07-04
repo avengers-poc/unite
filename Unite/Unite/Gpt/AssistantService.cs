@@ -64,6 +64,7 @@ public class AssistantService
             foreach (var action in run.RequiredActions)
             {
                 string result = "";
+                
                 try
                 {
                     if (action.FunctionName == "SearchGithub")
@@ -106,10 +107,25 @@ public class AssistantService
                         argumentsJson.RootElement.TryGetProperty("summary", out var summary);
                         argumentsJson.RootElement.TryGetProperty("issueDescription", out var description);
                         argumentsJson.RootElement.TryGetProperty("priority", out var priority);
-                        argumentsJson.RootElement.TryGetProperty("parentKey", out var parentKey);
-                        result = CreateJiraIssue(issueType.GetString(), summary.GetString(), description.GetString(),
+
+                        string parentKey = null;
+                    
+                        if (argumentsJson.RootElement.TryGetProperty("parentKey", out var parentKeyJson))
+                        {
+                            parentKey = parentKeyJson.GetString();
+
+                            if (string.IsNullOrWhiteSpace(parentKey))
+                                parentKey = null;
+                        }
+                    
+                        result = CreateJiraIssue(
+                            issueType.GetString(),
+                            summary.GetString(),
+                            description.GetString(),
                             priority.GetString(),
-                            string.IsNullOrWhiteSpace(parentKey.GetString()) ? null : parentKey.GetString());
+                            parentKey);
+                    
+                        toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
                     }
 
                     if (!string.IsNullOrWhiteSpace(result))
@@ -160,7 +176,7 @@ public class AssistantService
     private async Task<string> GetCommitHistory(string fileName = null)
     {
         var repo = await _gitHubClient.Repository.Get(Owner, Repo);
-        var commits = await _gitHubClient.Repository.Commit.GetAll(repo.Id, new CommitRequest()
+        var commits = await _gitHubClient.Repository.Commit.GetAll(repo.Id, new CommitRequest
         {
             Path = fileName
         });
