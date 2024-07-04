@@ -2,6 +2,7 @@ using System.ClientModel;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.DependencyInjection;
 using OpenAI.Assistants;
+using Unite.Gpt;
 
 namespace Unite.DependencyInjection;
 
@@ -18,5 +19,7 @@ public static class ConfigureGpt
             var client = prv.GetRequiredService<AssistantClient>();
             return client.GetAssistant("asst_hJvgr1Z7nr7Qf1cAHwD9ZIdz").Value;
         });
+
+        services.AddScoped<AssistantService>();
     }
 }
