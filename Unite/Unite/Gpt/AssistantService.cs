@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
-
+using Aspose.Cells;
 using Jira.Rest.Sdk;
 
 using Octokit;
@@ -129,6 +129,20 @@ public class AssistantService
                         toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
                     }
 
+                    if (action.FunctionName == "GetPullRequestCommits")
+                    {
+                        using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
+                        argumentsJson.RootElement.TryGetProperty("prNumber", out var prNumber);
+                        result = await GetPullRequestCommits(Convert.ToInt32(prNumber.ToString()));
+                    }
+
+                    if (action.FunctionName == "GetPullRequestFiles")
+                    {
+                        using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
+                        argumentsJson.RootElement.TryGetProperty("prNumber", out var prNumber);
+                        result = await GetPullRequestFiles(Convert.ToInt32(prNumber.ToString()));
+                    }
+
                     if (action.FunctionName == "GetPullRequestComments")
                     {
                         using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
@@ -174,6 +188,27 @@ public class AssistantService
                             Convert.ToInt64(inReplyTo.ToString()));
                     }
 
+                    if (action.FunctionName == "ReviewPullRequest")
+                    {
+                        using var argumentsJson = JsonDocument.Parse(action.FunctionArguments);
+                        argumentsJson.RootElement.TryGetProperty("prNumber", out var prNumber);
+                        argumentsJson.RootElement.TryGetProperty("body", out var body);
+                        argumentsJson.RootElement.TryGetProperty("commitId", out var commitId);
+                        var hasReviewComments = argumentsJson.RootElement.TryGetProperty("reviewComments", out var reviewCommentsJson);
+                        argumentsJson.RootElement.TryGetProperty("reviewEvent", out var reviewEventString);
+                        List<ReviewComment> reviewComments = hasReviewComments
+                            ? JsonSerializer.Deserialize<List<ReviewComment>>(reviewCommentsJson)
+                            : new List<ReviewComment>();
+                        PullRequestReviewEvent reviewEvent = Enum.Parse<PullRequestReviewEvent>(reviewEventString.ToString());
+                        
+                        result = await ReviewPullRequest(
+                            Convert.ToInt32(prNumber.ToString()),
+                            body.ToString(),
+                            commitId.ToString(),
+                            reviewComments.Select(x => new DraftPullRequestReviewComment(x.Body, x.path, x.Position)).ToList(),
+                            reviewEvent);
+                    }
+
                     if (!string.IsNullOrWhiteSpace(result))
                     {
                         toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
@@ -203,8 +238,13 @@ public class AssistantService
         var messages = _assistantClient
             .GetMessages(run.ThreadId, ListOrder.OldestFirst, cancellationToken)
             .ToList();
+
+        var responseMessage = messages.LastOrDefault();
         
-        var response = string.Join("\r\n", messages.Last().Content);
+        var response =
+            responseMessage.Role == MessageRole.Assistant
+                ? string.Join("\r\n", messages.Last().Content)
+                : "No response or an error occurred";
         
         return new SendMessageResult
         {
@@ -236,6 +276,18 @@ public class AssistantService
         return JsonSerializer.Serialize(pullRequests);
     }
 
+    private async Task<string> GetPullRequestCommits(int prNumber)
+    {
+        var commits = await _gitHubClient.Repository.PullRequest.Commits(Owner, Repo, prNumber);
+        return JsonSerializer.Serialize(commits);
+    }
+    
+    private async Task<string> GetPullRequestFiles(int prNumber)
+    {
+        IReadOnlyList<PullRequestFile> files = await _gitHubClient.Repository.PullRequest.Files(Owner, Repo, prNumber);
+        return JsonSerializer.Serialize(files);
+    }
+
     private async Task<string> GetPullRequestComments(int prNumber)
     {
         var comments = await _gitHubClient.Repository.PullRequest.ReviewComment.GetAll(Owner, Repo, prNumber);
@@ -256,13 +308,35 @@ public class AssistantService
         return JsonSerializer.Serialize(pullRequestComment);
     }
     
-    
     private async Task<string> ReplyToCommentOnPullRequest(int prNumber, string body, long inReplyTo)
     {
         var pullRequestComment = await _gitHubClient.Repository.PullRequest.ReviewComment.CreateReply(Owner, Repo, prNumber,
             new PullRequestReviewCommentReplyCreate(
                 body, inReplyTo));
         return JsonSerializer.Serialize(pullRequestComment);
+    }
+
+    private async Task<string> ReviewPullRequest(
+        int prNumber,
+        string body,
+        string commitId,
+        List<DraftPullRequestReviewComment> reviewComments,
+        PullRequestReviewEvent reviewEvent)
+    {
+        if (string.IsNullOrWhiteSpace(commitId))
+        {
+            IReadOnlyList<PullRequestCommit> commits = await _gitHubClient.Repository.PullRequest.Commits(Owner, Repo, prNumber);
+            commitId = commits.MaxBy(commit => commit.Commit.Committer.Date).Sha;
+        }
+        var pullRequestReview = await _gitHubClient.Repository.PullRequest.Review.Create(Owner, Repo, prNumber,
+            new PullRequestReviewCreate()
+            {
+                Body = body,
+                CommitId = commitId,
+                Comments = reviewComments,
+                Event = reviewEvent
+            });
+        return JsonSerializer.Serialize(pullRequestReview);
     }
 
     private string SearchJira(string searchString)
