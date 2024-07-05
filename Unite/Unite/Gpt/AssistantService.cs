@@ -18,6 +18,7 @@ public class AssistantService
     private readonly JiraService _jiraService;
 
     private const string AssistantId = "asst_hJvgr1Z7nr7Qf1cAHwD9ZIdz";
+    private const string TranslaterAssistantId = "asst_XcM7hTdKewNWPcyVECrgctox";
     private const string Owner = "avengers-poc";
     private const string Repo = "unite";
 
@@ -164,9 +165,12 @@ public class AssistantService
                         argumentsJson.RootElement.TryGetProperty("prNumber", out var prNumber);
                         argumentsJson.RootElement.TryGetProperty("body", out var body);
                         argumentsJson.RootElement.TryGetProperty("inReplyTo", out var inReplyTo);
+                        
+                        var replyComment = await TranslateAndRefineUserInputAsync(body.ToString(), cancellationToken);
+                        
                         result = await ReplyToCommentOnPullRequest(
                             Convert.ToInt32(prNumber.ToString()),
-                            body.ToString(),
+                            replyComment,
                             Convert.ToInt64(inReplyTo.ToString()));
                     }
 
@@ -277,5 +281,27 @@ public class AssistantService
     {
         var issue = _jiraService.IssueCreate("AU", issueType, summary, description, priority, parentKey);
         return JsonSerializer.Serialize(issue);
+    }
+
+    private async Task<string> TranslateAndRefineUserInputAsync(string message, CancellationToken cancellationToken = default)
+    {
+        var translationRun = (await _assistantClient.CreateThreadAndRunAsync(TranslaterAssistantId,
+            new ThreadCreationOptions
+            {
+                InitialMessages = { message }
+            },
+            cancellationToken: cancellationToken)).Value;
+
+        while (!translationRun.Status.IsTerminal)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            translationRun = await _assistantClient.GetRunAsync(translationRun.ThreadId, translationRun.Id, cancellationToken);
+        }
+                        
+        var translationMessages = _assistantClient
+            .GetMessages(translationRun.ThreadId, ListOrder.OldestFirst, cancellationToken)
+            .ToList();
+
+        return string.Join("\r\n", translationMessages.Last().Content);
     }
 }
