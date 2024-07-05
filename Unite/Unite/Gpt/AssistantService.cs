@@ -125,8 +125,6 @@ public class AssistantService
                             description.GetString(),
                             priority.GetString(),
                             parentKey);
-                    
-                        toolOutputs.Add(new ToolOutput(action.ToolCallId, result));
                     }
 
                     if (action.FunctionName == "GetPullRequestCommits")
