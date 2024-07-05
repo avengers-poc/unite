@@ -46,9 +46,9 @@ export default function Chat() {
 
   return (
     <Flex sx={css.chatContent}>
-      <div>
+      <Box sx={css.messageContent}>
         <Messages messages={messages} />
-      </div>
+      </Box>
       <Box sx={css.inputMessage}>
         <form className="form" onSubmit={(e) => onSubmit(e)}>
           <input

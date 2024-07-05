@@ -9,6 +9,11 @@ export const chatContent: ThemeUIStyleObject = {
   padding: "0 10px",
 };
 
+export const messageContent: ThemeUIStyleObject = {
+  minHeight: `calc(100vh - 100px)`,
+  paddingBottom: `7rem`,
+};
+
 export const inputMessage: ThemeUIStyleObject = {
   position: "fixed",
   bottom: 0,
