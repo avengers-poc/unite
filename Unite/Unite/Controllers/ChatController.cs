@@ -29,4 +29,11 @@ public class ChatController : ControllerBase
         
         return Ok(response);
     }
+
+    [HttpGet("health")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public IActionResult HealthCheck()
+    {
+        return Ok();
+    }
 }
