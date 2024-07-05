@@ -14,7 +14,7 @@ export const messageContent: ThemeUIStyleObject = {
   paddingBottom: `7rem`,
 };
 
-export const inputMessage: ThemeUIStyleObject = {
+export const inputMessage = (disable: boolean): ThemeUIStyleObject => ({
   position: "fixed",
   bottom: 0,
   left: 0,
@@ -26,7 +26,7 @@ export const inputMessage: ThemeUIStyleObject = {
   "> .form": {
     display: "flex",
     width: "100%",
-    background: "#fff",
+    backgroundColor: disable ? "#f0f3f6" : "#fff",
     boxShadow: "0px 1px 4px 0px rgba(0,0,0,0.1)",
     borderRadius: "10px",
   },
@@ -43,11 +43,11 @@ export const inputMessage: ThemeUIStyleObject = {
   "> .form .button": {
     padding: "12px 14px",
     fontSize: "16px",
-    backgroundColor: "#f2632e",
+    backgroundColor: disable ? "#dbe0e6" : "#f2632e",
     color: "#fff",
     border: "none",
     borderRadius: "8px",
     margin: "14px",
     cursor: "pointer",
   },
-};
+});
